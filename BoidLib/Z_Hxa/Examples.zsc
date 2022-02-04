@@ -1,0 +1,225 @@
+//These first two are just absolute basic Boids.  You can have different actor definitions 
+//and they won't follow each other as long as their BoidActor definition is different.
+Class HXA_TestBoid1 : HXA_Boid
+{
+	Override Void Tick()
+	{
+		if(GetAge()%2 == 0)
+		{
+			A_SpawnParticle("Red",SPF_FULLBRIGHT,6,25);
+		}
+		BoidFlight(MaxVelocity: 30,HorizonNormalizer: 5);
+		super.tick();
+	}
+	Default
+	{
+		HXA_Boid.BoidActor "HXA_TestBoid1";
+		+FRIENDLY;
+	}
+}
+
+Class HXA_TestBoid2 : HXA_Boid
+{
+	Override Void Tick()
+	{
+		if(GetAge()%2 == 0)
+		{
+			A_SpawnParticle("Blue",SPF_FULLBRIGHT,6,25);
+		}
+		BoidFlight();
+		super.tick();
+	}
+	Default
+	{
+		HXA_Boid.BoidActor "HXA_TestBoid2";
+		+FRIENDLY;
+	}
+}
+
+//Will Stay close to the player
+Class HXA_TestBoidFollowPlayer : HXA_Boid
+{
+	Override Void Tick()
+	{
+		if(GetAge()%2 == 0)
+		{
+			A_SpawnParticle("Green",SPF_FULLBRIGHT,6,25);
+		}
+		BoidFlight(MaxVelocity: 10, CloseToTarget: TRUE);
+		Super.tick();
+	}
+	Default
+	{
+		HXA_Boid.BoidActor "HXA_TestBoidFollowPlayer";
+		+MISSILE;
+		-ISMONSTER;
+	}
+	
+}
+
+//This will pick a random number and will split into 5 different flocks
+Class HXA_RandomFlock : HXA_Boid
+{
+	Override void PostBeginPlay()
+	{
+		FlockID = random(0,4);
+	}
+	Override void Tick()
+	{
+		BoidFlight(MaxVelocity: 10+FlockID*5);
+		Switch(FlockID)
+		{
+			Case 0:
+			A_SpawnParticle("Red",SPF_FULLBRIGHT,6,25);
+			break;
+			Case 1:
+			A_SpawnParticle("Yellow",SPF_FULLBRIGHT,6,25);
+			break;
+			Case 2:
+			A_SpawnParticle("Green",SPF_FULLBRIGHT,6,25);
+			break;
+			Case 3:
+			A_SpawnParticle("Blue",SPF_FULLBRIGHT,6,25);
+			break;
+			Case 4:
+			A_SpawnParticle("Purple",SPF_FULLBRIGHT,6,25);
+			break;
+		}
+		Super.tick();
+	}
+	Default
+	{
+		+NOINTERACTION;
+	}
+}
+
+//These two work together.  If you spawn the leader it will spawn a bunch of followers, which will only follow the leader
+Class HXA_BoidLeader : HXA_Boid
+{
+	Override Void PostBeginPlay()
+	{
+		FlockID = random(0,255);
+		for(int i=0; i<40; i++)
+		{
+			let k = Spawn("HXA_BoidFollower", pos);
+			HXA_BoidFollower(k).FlockID = FlockID;
+			HXA_BoidFollower(k).MaxDistancetoBoid = 1600;
+			HXA_BoidFollower(k).BoidActor = "HXA_BoidLeader";
+			HXA_BoidFollower(k).CloseToMaster = TRUE;
+			HXA_BoidFollower(k).DistanceFromMaster = 300;
+			k.master = self;
+		} 
+	}
+	Override Void Tick()
+	{
+		if(health > 0)
+		{
+			BoidFlight(null,MaxVelocity: 30,WallDetectionDistance: 10,MinDistanceBeacon: 400, MaxDistanceBeacon: 700,HorizonNormalizer: 30);
+			A_SpawnParticle("Gray", SPF_FULLBRIGHT, 4,15);
+		}
+		Super.Tick();
+	}
+	Default
+	{
+		Scale 4;
+	}
+}
+
+Class HXA_BoidFollower : HXA_Boid
+{
+	Override Void Tick()
+	{
+		if(health > 0)
+		{
+			BoidFlight("HXA_BoidLeader",BoidCohesion: 6);
+			A_SpawnParticle("White", SPF_FULLBRIGHT, 4,15);
+		}
+		Super.Tick();
+	}
+}
+
+//Flies around, finds enemies, and attacks them
+Class HXA_AttackBoid : HXA_Boid
+{
+	Bool Attacking;
+	override int TakeSpecialDamage(Actor inflictor, Actor source, int damage, Name damagetype)
+	{
+		if (source && (source.player || source is Species))
+		{
+			return 0;
+		}
+		return super.TakeSpecialDamage(inflictor, source, damage, damagetype);
+	}
+	Override Void Tick()
+	{
+		if((!Target))
+		{
+			BoidFlight(MaxVelocity: 10, CloseToTarget: TRUE, HorizonNormalizer: 30);
+		}
+		else if((target && !Attacking))
+		{
+			if(target.bCORPSE)
+			{
+				target = null;
+			}
+			if(vel.length() == 0)
+			{
+				vel = (0,0,1);
+			}
+			BoidFlight(MaxVelocity: 20, CloseToTarget: TRUE);
+		}
+		Super.tick();
+	}
+	Default
+	{
+		+FRIENDLY;
+		Species "HXA_AttackBoid";
+	}
+	States
+	{
+		Spawn:
+			SBAT ABCB 3
+			{
+				if(GetAge() > 55)
+				{
+					Target = HXA_FINDER(3000);
+					if(target)
+					{
+						SetStateLabel("See");
+					}
+				}
+			}
+			Loop;
+		See:
+			SBAT ABCB 3
+			{
+				if(!Target)
+				{
+					Return ResolveState("Spawn");
+				}
+				if(Target && distance2d(target) < 600 && random(0,30) == 30)
+				{
+					Attacking = TRUE;
+					Return ResolveState("FireAttack");
+				}
+				Return ResolveState(null);
+			}
+			Loop;
+		FireAttack:
+			TNT1 A 0
+			{
+				A_FaceTarget(max_pitch: 0,flags: FAF_MIDDLE);
+				A_CustomRailgun(40,0,"blue","red",RGF_FULLBRIGHT,0,0, Sparsity: .2);
+				A_StartSound("World/Spark",0);
+			}
+			SBAT ABCB 3;
+			TNT1 A 0
+			{
+				Attacking = FALSE;
+			}
+			Goto See;
+		Death:
+			CFCF LMNOP 2;
+			Stop;
+	}
+}

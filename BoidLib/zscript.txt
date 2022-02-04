@@ -1,0 +1,3 @@
+version "4.7.1"
+#Include "Z_Hxa/Boid.zsc"
+#Include "Z_Hxa/Examples.zsc"
