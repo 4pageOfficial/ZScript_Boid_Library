@@ -1,6 +1,6 @@
 //These first two are just absolute basic Boids.  You can have different actor definitions 
 //and they won't follow each other as long as their BoidActor definition is different.
-Class HXA_TestBoid1 : HXA_Boid
+Class BOID_TestBoid1 : BOID_Boid
 {
 	Override Void Tick()
 	{
@@ -13,12 +13,28 @@ Class HXA_TestBoid1 : HXA_Boid
 	}
 	Default
 	{
-		HXA_Boid.BoidActor "HXA_TestBoid1";
+		BOID_Boid.BoidActor "BOID_TestBoid1";
 		+FRIENDLY;
 	}
 }
+Class TestBoidSpawner : ACTOR
+{
+	int Count;
+	Override void tick()
+	{
+		if(GetAge()%350 == 0)
+		{
+			Count += 10;
+			for(int i=0; i < 10; i++)
+			{
+				spawn("BOID_TestBoid1",pos+(0,0,20));
+			}
+		}
+		Super.tick();
+	}
+}
 
-Class HXA_TestBoid2 : HXA_Boid
+Class BOID_TestBoid2 : BOID_Boid
 {
 	Override Void Tick()
 	{
@@ -31,13 +47,13 @@ Class HXA_TestBoid2 : HXA_Boid
 	}
 	Default
 	{
-		HXA_Boid.BoidActor "HXA_TestBoid2";
+		BOID_Boid.BoidActor "BOID_TestBoid2";
 		+FRIENDLY;
 	}
 }
 
 //Will Stay close to the player
-Class HXA_TestBoidFollowPlayer : HXA_Boid
+Class BOID_TestBoidFollowPlayer : BOID_Boid
 {
 	Override Void Tick()
 	{
@@ -50,7 +66,7 @@ Class HXA_TestBoidFollowPlayer : HXA_Boid
 	}
 	Default
 	{
-		HXA_Boid.BoidActor "HXA_TestBoidFollowPlayer";
+		BOID_Boid.BoidActor "BOID_TestBoidFollowPlayer";
 		+MISSILE;
 		-ISMONSTER;
 	}
@@ -58,7 +74,7 @@ Class HXA_TestBoidFollowPlayer : HXA_Boid
 }
 
 //This will pick a random number and will split into 5 different flocks
-Class HXA_RandomFlock : HXA_Boid
+Class BOID_RandomFlock : BOID_Boid
 {
 	Override void PostBeginPlay()
 	{
@@ -94,19 +110,19 @@ Class HXA_RandomFlock : HXA_Boid
 }
 
 //These two work together.  If you spawn the leader it will spawn a bunch of followers, which will only follow the leader
-Class HXA_BoidLeader : HXA_Boid
+Class BOID_BoidLeader : BOID_Boid
 {
 	Override Void PostBeginPlay()
 	{
 		FlockID = random(0,255);
 		for(int i=0; i<40; i++)
 		{
-			let k = Spawn("HXA_BoidFollower", pos);
-			HXA_BoidFollower(k).FlockID = FlockID;
-			HXA_BoidFollower(k).MaxDistancetoBoid = 1600;
-			HXA_BoidFollower(k).BoidActor = "HXA_BoidLeader";
-			HXA_BoidFollower(k).CloseToMaster = TRUE;
-			HXA_BoidFollower(k).DistanceFromMaster = 300;
+			let k = Spawn("BOID_BoidFollower", pos);
+			BOID_BoidFollower(k).FlockID = FlockID;
+			BOID_BoidFollower(k).MaxDistancetoBoid = 1600;
+			BOID_BoidFollower(k).BoidActor = "BOID_BoidLeader";
+			BOID_BoidFollower(k).CloseToMaster = TRUE;
+			BOID_BoidFollower(k).DistanceFromMaster = 300;
 			k.master = self;
 		} 
 	}
@@ -125,13 +141,13 @@ Class HXA_BoidLeader : HXA_Boid
 	}
 }
 
-Class HXA_BoidFollower : HXA_Boid
+Class BOID_BoidFollower : BOID_Boid
 {
 	Override Void Tick()
 	{
 		if(health > 0)
 		{
-			BoidFlight("HXA_BoidLeader",BoidCohesion: 6);
+			BoidFlight("BOID_BoidLeader",BoidCohesion: 6);
 			A_SpawnParticle("White", SPF_FULLBRIGHT, 4,15);
 		}
 		Super.Tick();
@@ -139,7 +155,7 @@ Class HXA_BoidFollower : HXA_Boid
 }
 
 //Flies around, finds enemies, and attacks them
-Class HXA_AttackBoid : HXA_Boid
+Class BOID_AttackBoid : BOID_Boid
 {
 	Bool Attacking;
 	override int TakeSpecialDamage(Actor inflictor, Actor source, int damage, Name damagetype)
@@ -173,7 +189,7 @@ Class HXA_AttackBoid : HXA_Boid
 	Default
 	{
 		+FRIENDLY;
-		Species "HXA_AttackBoid";
+		Species "BOID_AttackBoid";
 	}
 	States
 	{
@@ -182,7 +198,7 @@ Class HXA_AttackBoid : HXA_Boid
 			{
 				if(GetAge() > 55)
 				{
-					Target = HXA_FINDER(3000);
+					Target = BOID_FINDER(3000);
 					if(target)
 					{
 						SetStateLabel("See");
