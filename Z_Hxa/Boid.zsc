@@ -1,16 +1,18 @@
-Struct HXA_BoidArray
+
+
+Struct BOID_BoidArray
 {
-	Vector3 RandomMove[30];
+	Vector3 RandomMove[15];
 	Array<int> FindNew;
 }
 
 //This class has a lot of functions that you can use outside of the BoidFlight function
 //BoidFlight has to be used every tick for best results so tick override is recommended.
 
-Class HXA_Boid : ACTOR
+Class BOID_Boid : ACTOR
 {
 	Double VelocityMax;
-	HXA_BoidArray BoidArray;
+	BOID_BoidArray BoidArray;
 	Vector3 Beacon;
 	int8 BeaconCounter;
 	Bool CloseToMaster;
@@ -33,6 +35,8 @@ Class HXA_Boid : ACTOR
 	double MaxAngleBeacon;
 	double MaxRandomMoveAngle;
 	double HorizonNormalizer;
+	double VectorTurn;
+	Bool PreferTarget;
 	uint8 FlockID;
 	
 	Property BoidActor : BoidActor;
@@ -49,34 +53,37 @@ Class HXA_Boid : ACTOR
 	Property MaxAngleBeacon : MaxAngleBeacon;
 	Property MaxRandomMoveAngle : MaxRandomMoveAngle;
 	Property HorizonNormalizer  : HorizonNormalizer;
+	Property PreferTarget : PreferTarget;
+	Property VectorTurn : VectorTurn;
 	Property FlockID : FlockID;
 	Default
 	{
 		Health 30;
-		Monster;
+// 		Monster;
 		+THRUSPECIES;
 		-CountKill;
 		+NOGRAVITY;
-		+BRIGHT;
 		+NOBLOCKMONST;
 		+NOFRICTION;
 		Speed 0.1;
 		radius 10;
-		HXA_Boid.BoidActor "HXA_Boid";
-		HXA_Boid.MaxVelocity 20;
-		HXA_Boid.VelocityAcceleration .2;
-		HXA_Boid.WallDetectionDistance 6;
-		HXA_Boid.DistanceFromMaster 400;
-		HXA_Boid.DistanceFromTarget 400;
-		HXA_Boid.MinDistanceToBoid 150;
-		HXA_Boid.MaxDistanceToBoid 900;
-		HXA_Boid.BoidCohesion 3;
-		HXA_Boid.MinDistanceBeacon 100;
-		HXA_Boid.MaxDistanceBeacon 300;
-		HXA_Boid.MaxAngleBeacon 100;
-		HXA_Boid.MaxRandomMoveAngle 120;
-		HXA_Boid.HorizonNormalizer  1;
-		HXA_Boid.FlockID 0;
+		BOID_Boid.BoidActor "BOID_Boid";
+		BOID_Boid.MaxVelocity 20;
+		BOID_Boid.VelocityAcceleration .2;
+		BOID_Boid.WallDetectionDistance 6;
+		BOID_Boid.DistanceFromMaster 400;
+		BOID_Boid.DistanceFromTarget 400;
+		BOID_Boid.MinDistanceToBoid 150;
+		BOID_Boid.MaxDistanceToBoid 900;
+		BOID_Boid.BoidCohesion 3;
+		BOID_Boid.MinDistanceBeacon 100;
+		BOID_Boid.MaxDistanceBeacon 300;
+		BOID_Boid.MaxAngleBeacon 100;
+		BOID_Boid.MaxRandomMoveAngle 120;
+		BOID_Boid.HorizonNormalizer  1;
+		BOID_Boid.PreferTarget;
+		BOID_Boid.VectorTurn .6;
+		BOID_Boid.FlockID 0;
 	}
 	States
 	{
@@ -97,7 +104,7 @@ Class HXA_Boid : ACTOR
 	// non-positive (0 and negative)
 	// numbers on left side of arr[]
 	// and return count of such numbers
-	int segregate(out HXA_BoidArray BoidArray, int size)
+	int segregate(out BOID_BoidArray BoidArray, int size)
 	{
 		int j = 0;
 		int i;
@@ -122,7 +129,7 @@ Class HXA_Boid : ACTOR
 	// Find the smallest positive missing
 	// number in an array that contains
 	// all positive integers
-	int findMissingPositive(out HXA_BoidArray BoidArray, int size, int Start)
+	int findMissingPositive(out BOID_BoidArray BoidArray, int size, int Start)
 	{
 		int i = Start;
 		// Mark arr[i] as visited by making
@@ -155,11 +162,11 @@ Class HXA_Boid : ACTOR
 
 	void NewFlockID()	//Really only useful for spawners.  Will give itself a new unused FlockID.
 	{	
-		let BoidFinder = ThinkerIterator.Create("HXA_Boid", STAT_DEFAULT);
-		HXA_Boid boid;
+		let BoidFinder = ThinkerIterator.Create("BOID_Boid", STAT_DEFAULT);
+		BOID_Boid boid;
 		while (true)
 		{
-			boid = HXA_Boid(BoidFinder.next());
+			boid = BOID_Boid(BoidFinder.next());
 			if (boid == NULL || boid == self) { break; }
 			Bool InArray;
 			for(int i=0; i<BoidArray.FindNew.size(); i++)
@@ -179,7 +186,6 @@ Class HXA_Boid : ACTOR
 		int shift = segregate(BoidArray, size);
 		FlockID = findMissingPositive(BoidArray, size, Shift);
 		BoidArray.FindNew.Clear();
-// 		Console.printf(string.format("The new FlockID is %f",FlockID));
 		Return;
 	}
 	
@@ -187,25 +193,19 @@ Class HXA_Boid : ACTOR
 	//Use this when a spawner spawns boids.  Call from the spawned actor.
 	void GetMasterFlockID()	//Will get its master's FlockID.
 	{
-		if(!master || !(master is "HXA_Boid"))
+		if(!master || !(master is "BOID_Boid"))
 		{
 			Return;
 		}
 		else
 		{
-			FlockID = hxa_boid(master).FlockID;
+			FlockID = BOID_boid(master).FlockID;
 		}
 	}
 	
-// 	The actor really needs to stay in motion, so it needs to start in motion if the boid movement is going to work.
+//	You can put whatever you want in here that you want to happen only once as soon as it spawns.  Great for setting values.
 	Override void PostBeginPlay()
 	{	
-// 		A_FaceMovementDirection();
-// 		Populates the array to avoid issues with zero length vectors
-// 		for(int i=0; i<BoidArray.RandomMove.size(); i++)
-// 		{
-// 			BoidArray.RandomMove[i] = vel;
-// 		}
 		Super.PostBeginPlay();
 	}
 	
@@ -214,7 +214,7 @@ Class HXA_Boid : ACTOR
 	{
 		Vector3 RelLocal;
 		Vector3 UnitVel;
-		if(vel.length() > 0)
+		if(vel.length() > 0) 
 		{
 			UnitVel = vel.unit();
 		}
@@ -240,8 +240,8 @@ Class HXA_Boid : ACTOR
 		Return PRVec.unit();
 	}
 	
-//	This moves elements of an array from a HXA_BoidArray struct down one position, and adds a value to the beginning
-	Action void ShiftArray(Vector3 AddTo, out HXA_BoidArray BoidArray)
+//	This moves elements of an array from a BOID_BoidArray struct down one position, and adds a value to the beginning
+	Action void ShiftArray(Vector3 AddTo, out BOID_BoidArray BoidArray)
 	{
 		for(int i=BoidArray.RandomMove.Size()-1; i>0; i--)
 		{
@@ -293,7 +293,7 @@ Class HXA_Boid : ACTOR
 //	The main function.  You can run this function with changed arguments according to your need.  
 //	The properties will be used if the default arguments aren't changed unless UsePropertyValues is FALSE.
 	Action Void BoidFlight(
-		Class<Actor> BoidActor = "HXA_Boid",	//This is the class type that boid will follow and try to match velocities with
+		Class<Actor> BoidActor = "BOID_Boid",	//This is the class type that boid will follow and try to match velocities with
 		double MaxVelocity = 20,				//This is the max speed that it will go
 		double VelocityAcceleration = .2,		//This is how fast the increases its speed
 		double WallDetectionDistance = 6,		//How far away the Boid will detect walls.  WallDetectionDistance * velocity, so the distance increases the faster it goes
@@ -309,13 +309,15 @@ Class HXA_Boid : ACTOR
 		double MaxAngleBeacon = 100,			//Creates a beacon at an angle at most this far from its current velocity
 		double MaxRandomMoveAngle = 120,		//The max angle that the boid will randomly create a vector to move toward
 		double HorizonNormalizer = 1,			//Adjusts all vectors in the array to turn toward the horizon.  Higher than 1 moves them to horizontal faster, less than 1 lessens the effect
+		double VectorTurn = .6,
+		double WallVelMod = .9,
 		Bool UsePropertyValues = TRUE			//If this is true and the default arguments have not changed, then the arguments will use the values of the actor's properties.
 												//Otherwise will force the use of the given argument values.
 		)
 	{
 		if(UsePropertyValues)
 		{
-			BoidActor = BoidActor is "HXA_Boid" ? invoker.BoidActor : BoidActor;
+			BoidActor = BoidActor is "BOID_Boid" ? invoker.BoidActor : BoidActor;
 			MaxVelocity = MaxVelocity == 20 ? invoker.MaxVelocity : MaxVelocity;
 			VelocityAcceleration = VelocityAcceleration == .2 ? invoker.VelocityAcceleration : VelocityAcceleration;
 			WallDetectionDistance = WallDetectionDistance == 6 ? invoker.WallDetectionDistance : WallDetectionDistance;
@@ -332,6 +334,7 @@ Class HXA_Boid : ACTOR
 
 			MaxRandomMoveAngle = MaxRandomMoveAngle == 120 ? invoker.MaxRandomMoveAngle : MaxRandomMoveAngle;
 			HorizonNormalizer = HorizonNormalizer == 1 ? invoker.HorizonNormalizer : HorizonNormalizer;
+			VectorTurn = VectorTurn == .6 ? invoker.VectorTurn : VectorTurn;
 			CloseToMaster = invoker.CloseToMaster ? invoker.CloseToMaster : CloseToMaster;
 			CloseToTarget = invoker.CloseToTarget ? invoker.CloseToTarget : CloseToTarget;
 		}
@@ -349,6 +352,10 @@ Class HXA_Boid : ACTOR
 		{
 			invoker.VelocityMax += VelocityAcceleration;
 		}
+		else if(invoker.VelocityMax > MaxVelocity)
+		{
+			invoker.VelocityMax -= VelocityAcceleration;
+		}
 		
 		/////////////////////////////
 		////Detect walls to avoid////
@@ -356,9 +363,9 @@ Class HXA_Boid : ACTOR
 		
 		bool InFront;
 		bool AtSide;
-		for(int i=0; i<30; i++)
+		for(int i=0; i<10; i++)//for(int i=0; i<10; i++)
 		{
-			vector3 FibVec = FibSphereDirection(i, 70); //Checks half a sphere centered on its velocity vector
+			vector3 FibVec = FibSphereDirection(i, 25); //Checks half a sphere centered on its velocity vector
 			if(LineTrace(Atan2(FibVec.y,FibVec.x),invoker.VelocityMax*WallDetectionDistance + radius,-Asin(FibVec.z),TRF_THRUACTORS | TRF_BLOCKSELF, height/2))
 			{
 				if(i<4)
@@ -372,6 +379,9 @@ Class HXA_Boid : ACTOR
 				Break;
 			}
 		}
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+		
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////				
 		if(InFront || AtSide)
 		{
 			Vector3 AVGvec;
@@ -380,13 +390,15 @@ Class HXA_Boid : ACTOR
 			While(AVGvec.length() == 0)
 			{
 				breaker++;
-				if(breaker > 100)//So it doesn't get stuck in a permanent loop
+				if(breaker > 10)//So it doesn't get stuck in a permanent loop
 				{
 					break;
 				}
-				for(int i=0; i<90; i++)
+// 				vector3 tempvel = vel;
+// 				vel = FibSphereDirection(random(0,40),2500);
+				for(int i=0; i<60; i++)
 				{
-					vector3 FibVec = FibSphereDirection(i, 90);//Checks in a full sphere
+					vector3 FibVec = FibSphereDirection(i, 60);//Checks in a full sphere
 					double FibAngle = Atan2(FibVec.y,FibVec.x);
 					double FibPitch = -Asin(FibVec.z);
 					if(!LineTrace(FibAngle,invoker.VelocityMax*WallDetectionDistance+radius,FibPitch,TRF_THRUACTORS | TRF_BLOCKSELF, height/2,0,0))
@@ -407,18 +419,22 @@ Class HXA_Boid : ACTOR
 						}
 					}
 				}
-				invoker.VelocityMax *= .9;	//Slows it down a bit near walls
+// 				vel = tempvel;
+				invoker.VelocityMax *= WallVelMod;	//Slows it down a bit near walls
 			}
 			AVGvec /= AverageVectorNumbers;
 			AVGvec = AVGvec.unit();
+			if((bNOCLIP || bNOINTERACTION) && !levellocals.ispointinlevel(pos))
+			{
+				AVGvec.xy *= -1;
+			}
 			ShiftArray(AVGvec*(max(2,invoker.VelocityMax*.2)+InFront*max(4,invoker.VelocityMax*.4)), invoker.BoidArray);
 		}
-		
 		//////////////////////////
 		////Find Master/Target////
 		//////////////////////////
 		
-		if(CloseToMaster && (!Target || !CloseToTarget) && Master && distance3d(Master) > DistanceFromMaster && GetAge()%3==0)
+		if(CloseToMaster  && !(Target && invoker.PreferTarget) && Master && distance3d(Master) > DistanceFromMaster && GetAge()%3==0)
 		{
 			vector3 ToMaster = vec3to(Master);
 			if(ToMaster.length() > 0)	//vector to master is stronger the further outside of range the boid is
@@ -429,9 +445,18 @@ Class HXA_Boid : ACTOR
 		}
 		else if(CloseToTarget && Target && distance3d(Target) > DistanceFromTarget && GetAge()%3==0)
 		{
+			vector3 TempToTarget = vec3to(target);
 			vector3 ToTarget = vec3to(Target) + (0,0,Target.height/2);
 			double angtotarg = VectorAngle(ToTarget.x,ToTarget.y);
-			double pitchtotarg = -Asin(ToTarget.z/ToTarget.length());
+			double pitchtotarg;
+			if(ToTarget.length() > 1)
+			{
+				pitchtotarg = -Asin(ToTarget.z/ToTarget.length());
+			}
+			else
+			{
+				pitchtotarg = 0;
+			}
 			if(ToTarget.length() > 0)
 			{
 				ToTarget /= DistanceFromTarget*2;
@@ -457,23 +482,70 @@ Class HXA_Boid : ACTOR
 		////Detect other Boids////
 		//////////////////////////
 		
-		HXA_BoidArray BoidFinderArray;
-		HXA_BoidArray BoidVelArray;
+		BOID_BoidArray BoidFinderArray;
+		BOID_BoidArray BoidVelArray;
 		vector3 BoidFinderAverage;
 		vector3 BoidVelAverage;
 		int BoidFinderAverageCounter;
+		int BreakCounter;
 		
 		//Will only find boids that you specify by class name.  Also looks at ancestry.
-		let BoidFinder = ThinkerIterator.Create(BoidActor, STAT_DEFAULT);
 		Bool Found;
-		HXA_Boid boid;
-		while (true)
+		BOID_Boid boid;
+		
+		let event = BoidArrayHandler(EventHandler.find("BoidArrayHandler"));
+		for(int i=0; i<event.Boids.size(); i++)
 		{
-			boid = HXA_Boid(BoidFinder.next());
-			if (boid == NULL) { break; }
+			boid = BOID_Boid(event.Boids[i]);
+			if (boid == NULL || BreakCounter >= 20) { break; }
 			Vector3 vec = vec3to(Boid);
 			//Only looks at boids in front of itself, and boids with the same FlockID
-			if(Boid == self || vecangletovec(vel,Vec) > 90 || Boid.FlockID != invoker.FlockID)
+			if(Boid == self || Boid.FlockID != invoker.FlockID || vecangletovec(vel,Vec) > 90 || !checksight(Boid))
+			{
+				Continue;
+			}
+			Found = TRUE;
+			Double BoidDistance = Distance3d(Boid);
+			if(BoidDistance > MaxDistanceToBoid)
+			{
+				Continue;
+			}
+			Vector3 UnitBoidVec = vec;
+			if(BoidDistance > 0)
+			{
+				UnitBoidVec = vec.unit();
+			}
+			if(BoidDistance < MinDistanceToBoid)	//if it's too close
+			{
+				vector3 AwayVec = UnitBoidVec * ((MinDistanceToBoid*2)-BoidDistance)/MinDistanceToBoid;
+				ShiftArray(-AwayVec,BoidFinderArray);
+			}
+			if(BoidDistance < MaxDistanceToBoid && BoidDistance > 80)	//if it's too far away
+			{
+				vector3 TowardVec = vec / (MaxDistanceToBoid/2);
+				ShiftArray(TowardVec,BoidFinderArray);
+			}
+			if(BoidDistance < (2*MaxDistanceToBoid/3))	//matches velocities if it's close enough
+			{
+				Vector3 BVel= Boid.vel;
+				if(BoidDistance > 0 && Boid.vel.length() > 0)
+				{
+					BVel = Boid.vel.Unit();
+				}
+				ShiftArray(BVel,BoidVelArray);
+			}
+			BreakCounter++;
+		}
+		
+		/* let BoidFinder = ThinkerIterator.Create(BoidActor, STAT_DEFAULT);
+		
+		while (true)
+		{
+			boid = BOID_Boid(BoidFinder.next());
+			if (boid == NULL || BreakCounter >= 20) { break; }
+			Vector3 vec = vec3to(Boid);
+			//Only looks at boids in front of itself, and boids with the same FlockID
+			if(Boid == self || Boid.FlockID != invoker.FlockID || vecangletovec(vel,Vec) > 90)
 			{
 				Continue;
 			}
@@ -503,7 +575,8 @@ Class HXA_Boid : ACTOR
 				}
 				ShiftArray(BVel,BoidVelArray);
 			}
-		}
+			BreakCounter++;
+		} */
 		if(Found)
 		{
 			//adds vectors to a separate array to find an average vector to/away from other boids
@@ -583,15 +656,7 @@ Class HXA_Boid : ACTOR
 			double pivot = frandom(-MaxRandomMoveAngle,MaxRandomMoveAngle);
 			double PRoll = frandom(-180,180);
 			vector3 RPivRoll = PivotRoll(pivot, PRoll);
-			
-			/* RPivRoll.z *= .6; */
 			RPivRoll = RelativeLocalCoords(RPivRoll);
-			/* Vector3 UnitRPivRoll = RPivRoll.unit();
-			Double PivRollPitch = -ASin(UnitRPivRoll.z);
-			if(abs(VelP)>45 && abs(VelP+PivRollPitch) > Abs(VelP))
-			{
-				RPivRoll.z *= -1;
-			} */
 			ShiftArray(RPivRoll*2,invoker.BoidArray);
 		}
 		
@@ -608,7 +673,7 @@ Class HXA_Boid : ACTOR
 		if(GetAge() > 5)
 		{	
 			//Rotates the velocity vector toward the average vector
-			Vel = TurnTowardVec(Vel, AverageVector, vecangletovec(Vel,AverageVector)*.6);
+			Vel = TurnTowardVec(Vel, AverageVector, vecangletovec(Vel,AverageVector)*VectorTurn);
 			A_FaceMovementDirection();
 		}
 		for(int i=0; i<invoker.BoidArray.RandomMove.Size(); i++)
@@ -635,7 +700,7 @@ Class HXA_Boid : ACTOR
 	}
 	
 	//This function is so you can use it to find enemies.  Isn't used in the main BoidMovement function so feel free to ignore or use if you want.
-	action Actor HXA_FINDER(double maxDistance = 512, Bool RandomTargets = TRUE, 
+	action Actor BOID_FINDER(double maxDistance = 512, Bool RandomTargets = TRUE, 
 	Bool ThroughActors = TRUE, Bool Throughwalls = FALSE)
 	{
 		Array<Actor> Targets;
