@@ -1,3 +1,31 @@
 version "4.7.1"
-#Include "Z_Hxa/Boid.zsc"
-#Include "Z_Hxa/Examples.zsc"
+Class BoidArrayHandler : EventHandler
+{
+	// do a thing every 10 seconds
+	int seconds;// = 10;
+	Array<actor> Boids;
+	override void WorldThingSpawned (WorldEvent e)
+	{
+		if(e.thing && e.thing is "HXA_Boid")
+		{
+			Boids.Push(e.thing);
+		}
+	}
+	override void WorldTick()
+	{
+		if (Level.maptime % (Thinker.TICRATE * 10) == 0) 
+		{
+			Boids.clear();
+			let BoidFinder = ThinkerIterator.Create("BOID_Boid");
+			BOID_Boid boid;
+			while (true)
+			{
+				boid = BOID_Boid(BoidFinder.next());
+				if (boid == NULL) { break; }
+				Boids.Push(boid);
+			}
+		}
+	}
+}
+#Include "Z_BOID/Boid.zsc"
+#Include "Z_BOID/Examples.zsc"
